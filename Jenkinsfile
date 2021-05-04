@@ -30,19 +30,33 @@ pipeline {
     stage('Checkout') {
       steps{
         echo "------------>Checkout<------------"
+        checkout([
+        $class: 'GitSCM', 
+        branches: [[name: '*/master']], 
+        doGenerateSubmoduleConfigurations: false, 
+        extensions: [], 
+        gitTool: 'Default', 
+        submoduleCfg: [], 
+        userRemoteConfigs: [[
+       credentialsId: 'GitHub_emanuelsierram', 
+     url:'https://github.com/emanuelsierram/pagos'
+]]
+])
+
       }
     }
     
-    stage('Compile & Unit Tests') {
-      steps{
-        echo "------------>Compile & Unit Tests<------------"
-
+    stage('Compile & Unit Tests') {  
+        steps{
+        echo "------------>compile & Unit Tests<------------"
+        sh 'chmod +x gradlew'
+        sh './gradlew --b ./build.gradle test'
       }
     }
 
     stage('Static Code Analysis') {
       steps{
-        echo '------------>Análisis de código estático<------------'
+        echo '------------>Análisis de código estático<------------'   
         withSonarQubeEnv('Sonar') {
 sh "${tool name: 'SonarScanner', type:'hudson.plugins.sonar.SonarRunnerInstallation'}/bin/sonar-scanner -Dproject.settings=sonar-project.properties"
         }
@@ -52,6 +66,7 @@ sh "${tool name: 'SonarScanner', type:'hudson.plugins.sonar.SonarRunnerInstallat
     stage('Build') {
       steps {
         echo "------------>Build<------------"
+        sh 'gradle --b ./build.gradle build -x test'
       }
     }  
   }
@@ -62,9 +77,14 @@ sh "${tool name: 'SonarScanner', type:'hudson.plugins.sonar.SonarRunnerInstallat
     }
     success {
       echo 'This will run only if successful'
+      junit 'build/test-results/test/*.xml' 
     }
     failure {
+      failure {
       echo 'This will run only if failed'
+      mail (to: 'emanuel.sierra@ceiba.com.co',subject: "Failed Pipeline:${currentBuild.fullDisplayName}",body: "Something is wrong with ${env.BUILD_URL}")
+}
+
     }
     unstable {
       echo 'This will run only if the run was marked as unstable'
